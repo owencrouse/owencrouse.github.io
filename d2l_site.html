@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Animated Classroom</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            max-width: 250px;
+        }
+    </style>
+</head>
+<body>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        let scene, camera, renderer, classroom;
+        let clock, fan, door, window1, window2;
+        let desks = [];
+        let chairs = [];
+        let computer, computerScreen;
+        let raycaster, mouse;
+        let isComputerScreenOpen = false;
+
+        function init() {
+            // Scene setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x87CEEB);
+            scene.fog = new THREE.Fog(0x87CEEB, 30, 60);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 4, 12);
+            camera.lookAt(0, 4, -7.5);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // Raycaster for clicking
+            raycaster = new THREE.Raycaster();
+            mouse = new THREE.Vector2();
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(10, 15, 10);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+
+            // Create classroom
+            createClassroom();
+
+            // Mouse controls
+            let isDragging = false;
+            let previousMouseX = 0;
+            let rotationY = 0;
+            let rotationX = 0.3;
+
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMouseX = e.clientX;
+            });
+
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    const deltaX = e.clientX - previousMouseX;
+                    rotationY += deltaX * 0.005;
+                    previousMouseX = e.clientX;
+                }
+            });
+
+            renderer.domElement.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+
+            renderer.domElement.addEventListener('click', onMouseClick);
+
+            renderer.domElement.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                camera.position.z += e.deltaY * 0.01;
+                camera.position.z = Math.max(10, Math.min(30, camera.position.z));
+            });
+
+            window.addEventListener('resize', onWindowResize);
+
+            // Store rotation for animation
+            scene.userData.rotationY = rotationY;
+            scene.userData.rotationX = rotationX;
+            scene.userData.isDragging = () => isDragging;
+
+            clock = new THREE.Clock();
+        }
+
+        function createClassroom() {
+            classroom = new THREE.Group();
+
+            // Floor
+            const floorGeometry = new THREE.BoxGeometry(20, 0.2, 15);
+            const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xF0F0F0 });
+            const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+            floor.position.y = 0;
+            floor.receiveShadow = true;
+            classroom.add(floor);
+
+            // Walls
+            const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xE3D7CA });
+            
+            // Back wall
+            const backWallGeometry = new THREE.BoxGeometry(20, 8, 0.2);
+            const backWall = new THREE.Mesh(backWallGeometry, wallMaterial);
+            backWall.position.set(0, 4, -7.5);
+            backWall.receiveShadow = true;
+            classroom.add(backWall);
+
+            // Side walls
+            const sideWallGeometry = new THREE.BoxGeometry(0.2, 8, 15);
+            const leftWall = new THREE.Mesh(sideWallGeometry, wallMaterial);
+            leftWall.position.set(-10, 4, 0);
+            leftWall.receiveShadow = true;
+            classroom.add(leftWall);
+
+            const rightWall = new THREE.Mesh(sideWallGeometry, wallMaterial);
+            rightWall.position.set(10, 4, 0);
+            rightWall.receiveShadow = true;
+            classroom.add(rightWall);
+
+            // Ceiling
+            const ceilingGeometry = new THREE.BoxGeometry(20, 0.2, 15);
+            const ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+            const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
+            ceiling.position.y = 8;
+            classroom.add(ceiling);
+
+            // Blackboard
+            const boardGeometry = new THREE.BoxGeometry(6, 3, 0.1);
+            const boardMaterial = new THREE.MeshStandardMaterial({ color: 0x2F4F2F });
+            const board = new THREE.Mesh(boardGeometry, boardMaterial);
+            board.position.set(0, 4, -7.3);
+            classroom.add(board);
+
+            // Add text to blackboard using canvas texture
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 512;
+            const ctx = canvas.getContext('2d');
+
+            // Fill with chalkboard color
+            ctx.fillStyle = '#2F4F2F';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw chalk text
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 55px Sacramento';
+            ctx.textAlign = 'center';
+            ctx.fillText("Welcome to Owen Crouse's Classroom", canvas.width / 2, 150);
+
+           
+
+            ctx.font = '50px Sacramento';
+            ctx.fillText('Access Computer to Learn More', canvas.width / 2, 350);
+
+        
+
+            // Add some chalk dust effect
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            for (let i = 0; i < 50; i++) {
+                const x = Math.random() * canvas.width;
+                const y = Math.random() * canvas.height;
+                const size = Math.random() * 3;
+                ctx.fillRect(x, y, size, size);
+            }
+
+            // Create texture from canvas
+            const textTexture = new THREE.CanvasTexture(canvas);
+            const textMaterial = new THREE.MeshStandardMaterial({ 
+                map: textTexture,
+                transparent: true
+            });
+            const textPlane = new THREE.Mesh(
+                new THREE.BoxGeometry(5.8, 2.8, 0.01),
+                textMaterial
+            );
+            textPlane.position.set(0, 4, -7.25);
+            classroom.add(textPlane);
+
+            // Teacher's desk
+            const teacherDesk = createDesk(0x8B4513);
+            teacherDesk.position.set(0, 0.1, -5);
+            teacherDesk.scale.set(1.5, 1, 1.2);
+            classroom.add(teacherDesk);
+
+            // Add 2000s computer to teacher's desk
+            computer = create2000sComputer();
+            computer.position.set(0.4, 1.65, -5);
+            classroom.add(computer);
+
+            // Student desks and chairs
+            for (let row = 0; row < 3; row++) {
+                for (let col = 0; col < 4; col++) {
+                    const desk = createDesk(0xD2691E);
+                    desk.position.set(-6 + col * 4, 0.1, 0 + row * 3);
+                    desks.push(desk);
+                    classroom.add(desk);
+
+                    const chair = createChair();
+                    chair.position.set(-6 + col * 4, 0.1, 1.5 + row * 3);
+                    chairs.push(chair);
+                    classroom.add(chair);
+                }
+            }
+
+            // Windows
+            const windowGeometry = new THREE.BoxGeometry(2, 3, 0.1);
+            const windowMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x87CEEB, 
+                transparent: true, 
+                opacity: 0.5 
+            });
+            
+            window1 = new THREE.Mesh(windowGeometry, windowMaterial);
+            window1.position.set(-9.9, 4, -3);
+            window1.rotation.y = Math.PI / 2;
+            classroom.add(window1);
+
+            window2 = new THREE.Mesh(windowGeometry, windowMaterial);
+            window2.position.set(-9.9, 4, 3);
+            window2.rotation.y = Math.PI / 2;
+            classroom.add(window2);
+
+            // Door
+            const doorGeometry = new THREE.BoxGeometry(2, 4, 0.1);
+            const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            door = new THREE.Mesh(doorGeometry, doorMaterial);
+            door.position.set(9.9, 2, 0);
+            door.rotation.y = -Math.PI / 2;
+            classroom.add(door);
+
+            // Ceiling fan
+            fan = new THREE.Group();
+            const fanBase = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.3, 0.3, 0.5, 16),
+                new THREE.MeshStandardMaterial({ color: 0x808080 })
+            );
+            fan.add(fanBase);
+
+            for (let i = 0; i < 4; i++) {
+                const blade = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 0.05, 0.3),
+                    new THREE.MeshStandardMaterial({ color: 0x696969 })
+                );
+                blade.rotation.y = (Math.PI / 2) * i;
+                fan.add(blade);
+            }
+            fan.position.set(0, 7.5, 0);
+            classroom.add(fan);
+
+            // Add posters to walls
+            createPosters();
+
+            scene.add(classroom);
+        }
+
+        function createPosters() {
+            const textureLoader = new THREE.TextureLoader();
+            
+            // Poster 1 - Math poster on back wall
+            const poster1 = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 2.5, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0xFFFFFF })
+            );
+            poster1.position.set(-5, 4, -7.4);
+            classroom.add(poster1);
+            
+            // Poster 1 content (with your image)
+            const poster1Texture = textureLoader.load('images/resume_img.png');
+            const poster1Content = new THREE.Mesh(
+                new THREE.BoxGeometry(1.8, 2.3, 0.02),
+                new THREE.MeshStandardMaterial({ map: poster1Texture })
+            );
+            poster1Content.position.set(-5, 4, -7.35);
+            classroom.add(poster1Content);
+
+            // Poster 2 - Science poster on back wall
+            const poster2 = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 2.5, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0xFFFFFF })
+            );
+            poster2.position.set(5, 4, -7.4);
+            classroom.add(poster2);
+            
+            const poster2Texture = textureLoader.load('images/inception_testposter.jpg');
+            const poster2Content = new THREE.Mesh(
+                new THREE.BoxGeometry(1.8, 2.3, 0.02),
+                new THREE.MeshStandardMaterial({ map: poster2Texture })
+            );
+            poster2Content.position.set(5, 4, -7.35);
+            classroom.add(poster2Content);
+
+            // Poster 3 - Motivational poster on left wall
+            const poster3 = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 1.5, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0xFFFFFF })
+            );
+            poster3.position.set(-9.9, 5.5, -6);
+            poster3.rotation.y = Math.PI / 2;
+            classroom.add(poster3);
+            
+            const poster3Texture = textureLoader.load('images/tron-motorcycle.jpg');
+            const poster3Content = new THREE.Mesh(
+                new THREE.BoxGeometry(1.8, 1.3, 0.02),
+                new THREE.MeshStandardMaterial({ map: poster3Texture })
+            );
+            poster3Content.position.set(-9.85, 5.5, -6);
+            poster3Content.rotation.y = Math.PI / 2;
+            classroom.add(poster3Content);
+
+            // Poster 4 - Reading poster on left wall
+            const poster4 = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 1.5, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0xFFFFFF })
+            );
+            poster4.position.set(-9.9, 5.5, 6);
+            poster4.rotation.y = Math.PI / 2;
+            classroom.add(poster4);
+            
+            const poster4Content = new THREE.Mesh(
+                new THREE.BoxGeometry(1.8, 1.3, 0.02),
+                new THREE.MeshStandardMaterial({ color: 0x32CD32 })
+            );
+            poster4Content.position.set(-9.85, 5.5, 6);
+            poster4Content.rotation.y = Math.PI / 2;
+            classroom.add(poster4Content);
+
+            // Poster 5 - World map on right wall
+            const poster5 = new THREE.Mesh(
+                new THREE.BoxGeometry(3, 2, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0xFFFFFF })
+            );
+            poster5.position.set(9.9, 4.5, -3);
+            poster5.rotation.y = -Math.PI / 2;
+            classroom.add(poster5);
+            
+            const poster5Content = new THREE.Mesh(
+                new THREE.BoxGeometry(2.8, 1.8, 0.02),
+                new THREE.MeshStandardMaterial({ color: 0x87CEEB })
+            );
+            poster5Content.position.set(9.85, 4.5, -3);
+            poster5Content.rotation.y = -Math.PI / 2;
+            classroom.add(poster5Content);
+
+            // Poster 6 - Alphabet poster on right wall
+            const poster6 = new THREE.Mesh(
+                new THREE.BoxGeometry(2.5, 1.5, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0xFFFFFF })
+            );
+            poster6.position.set(9.9, 6, 4);
+            poster6.rotation.y = -Math.PI / 2;
+            classroom.add(poster6);
+            
+            const poster6Content = new THREE.Mesh(
+                new THREE.BoxGeometry(2.3, 1.3, 0.02),
+                new THREE.MeshStandardMaterial({ color: 0xFF69B4 })
+            );
+            poster6Content.position.set(9.85, 6, 4);
+            poster6Content.rotation.y = -Math.PI / 2;
+            classroom.add(poster6Content);
+
+            // Clock on back wall
+            const clockFrame = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.4, 0.4, 0.1, 32),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            clockFrame.rotation.x = Math.PI / 2;
+            clockFrame.position.set(3, 6.5, -7.35);
+            classroom.add(clockFrame);
+
+            const clockFace = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.35, 0.35, 0.05, 32),
+                new THREE.MeshStandardMaterial({ color: 0xFFFFFF })
+            );
+            clockFace.rotation.x = Math.PI / 2;
+            clockFace.position.set(3, 6.5, -7.3);
+            classroom.add(clockFace);
+
+            const hourHand = new THREE.Mesh(
+                new THREE.BoxGeometry(0.25, 0.25, 0.02),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            hourHand.position.set(3, 6.5, -7.29);
+            hourHand.rotation.x = Math.PI / 2;
+            classroom.add(hourHand);
+
+            // Minute hand
+            const minuteHand = new THREE.Mesh(
+                new THREE.BoxGeometry(0.12, 0.70, 0.02),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            minuteHand.position.set(3, 6.5, -7.24);
+            minuteHand.rotation.x = Math.PI / 2;
+            classroom.add(minuteHand);
+
+            // Second hand
+            const secondHand = new THREE.Mesh(
+                new THREE.BoxGeometry(0.02, 0.28, 0.02),
+                new THREE.MeshStandardMaterial({ color: 0xFF0000 })
+            );
+            secondHand.position.set(3, 6.5, -7.23);
+            secondHand.rotation.x = Math.PI / 2;
+            classroom.add(secondHand);
+
+            // Center dot
+            const centerDot = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.03, 0.03, 0.02, 16),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            centerDot.rotation.x = Math.PI / 2;
+            centerDot.position.set(3, 6.5, -7.22);
+            classroom.add(centerDot);
+
+                    }
+
+            function createDesk(color) {
+                const desk = new THREE.Group();
+                
+            // Desktop
+            const top = new THREE.Mesh(
+                new THREE.BoxGeometry(1.5, 0.1, 1),
+                new THREE.MeshStandardMaterial({ color: color })
+            );
+            top.position.y = 1;
+            top.castShadow = true;
+            desk.add(top);
+
+            // Legs
+            const legGeometry = new THREE.BoxGeometry(0.1, 1, 0.1);
+            const legMaterial = new THREE.MeshStandardMaterial({ color: color });
+            
+            const positions = [
+                [-0.65, 0.5, -0.4],
+                [0.65, 0.5, -0.4],
+                [-0.65, 0.5, 0.4],
+                [0.65, 0.5, 0.4]
+            ];
+
+            positions.forEach(pos => {
+                const leg = new THREE.Mesh(legGeometry, legMaterial);
+                leg.position.set(...pos);
+                leg.castShadow = true;
+                desk.add(leg);
+            });
+
+            return desk;
+        }
+
+        function createChair() {
+            const chair = new THREE.Group();
+            
+            // Seat
+            const seat = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.1, 0.8),
+                new THREE.MeshStandardMaterial({ color: 0x8B4513 })
+            );
+            seat.position.y = 0.7;
+            seat.castShadow = true;
+            chair.add(seat);
+
+            // Backrest
+            const back = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.6, 0.1),
+                new THREE.MeshStandardMaterial({ color: 0x8B4513 })
+            );
+            back.position.set(0, 1.1, -0.35);
+            back.castShadow = true;
+            chair.add(back);
+
+            // Legs
+            const legGeometry = new THREE.BoxGeometry(0.08, 0.7, 0.08);
+            const legMaterial = new THREE.MeshStandardMaterial({ color: 0x654321 });
+            
+            const positions = [
+                [-0.3, 0.35, -0.3],
+                [0.3, 0.35, -0.3],
+                [-0.3, 0.35, 0.3],
+                [0.3, 0.35, 0.3]
+            ];
+
+            positions.forEach(pos => {
+                const leg = new THREE.Mesh(legGeometry, legMaterial);
+                leg.position.set(...pos);
+                leg.castShadow = true;
+                chair.add(leg);
+            });
+
+            return chair;
+        }
+
+        function create2000sComputer() {
+            const comp = new THREE.Group();
+
+            // CRT Monitor (the bulky back)
+            const monitorBack = new THREE.Mesh(
+                new THREE.BoxGeometry(0.6, 0.5, 0.6),
+                new THREE.MeshStandardMaterial({ color: 0xD3D3D3 })
+            );
+            monitorBack.castShadow = true;
+            comp.add(monitorBack);
+
+            // Monitor front bezel
+            const bezel = new THREE.Mesh(
+                new THREE.BoxGeometry(0.62, 0.52, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0xC0C0C0 })
+            );
+            bezel.position.z = 0.325;
+            bezel.castShadow = true;
+            comp.add(bezel);
+
+            // Screen (clickable)
+            const screenGeometry = new THREE.BoxGeometry(0.5, 0.38, 0.02);
+            const screenMaterial = new THREE.MeshStandardMaterial({ 
+                color: 0x1a472a,
+                emissive: 0x0a1a0a
+            });
+            computerScreen = new THREE.Mesh(screenGeometry, screenMaterial);
+            computerScreen.position.z = 0.36;
+            computerScreen.castShadow = true;
+            computerScreen.userData.clickable = true;
+            comp.add(computerScreen);
+
+            // Power button (little circle)
+            const powerButton = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.02, 0.02, 0.01, 16),
+                new THREE.MeshStandardMaterial({ color: 0x90EE90, emissive: 0x00FF00 })
+            );
+            powerButton.rotation.x = Math.PI / 2;
+            powerButton.position.set(0.25, -0.22, 0.35);
+            comp.add(powerButton);
+
+            // Monitor stand
+            const stand = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.08, 0.12, 0.15, 16),
+                new THREE.MeshStandardMaterial({ color: 0xC0C0C0 })
+            );
+            stand.position.set(0, -0.325, 0);
+            stand.castShadow = true;
+            comp.add(stand);
+
+            // Keyboard
+            const keyboard = new THREE.Mesh(
+                new THREE.BoxGeometry(0.5, 0.03, 0.2),
+                new THREE.MeshStandardMaterial({ color: 0xE8E8E8 })
+            );
+            keyboard.position.set(0, -0.4, 0.5);
+            keyboard.rotation.x = 0.1;
+            keyboard.castShadow = true;
+            comp.add(keyboard);
+
+            // Mouse
+            const mouse = new THREE.Mesh(
+                new THREE.SphereGeometry(0.04, 16, 16),
+                new THREE.MeshStandardMaterial({ color: 0xD3D3D3 })
+            );
+            mouse.scale.set(1, 0.6, 1.2);
+            mouse.position.set(0.35, -0.39, 0.5);
+            mouse.castShadow = true;
+            comp.add(mouse);
+
+            return comp;
+        }
+
+        function onMouseClick(event) {
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            for (let intersect of intersects) {
+                if (intersect.object.userData.clickable) {
+                    toggleComputerScreen();
+                    break;
+                }
+            }
+        }
+
+        function toggleComputerScreen() {
+            isComputerScreenOpen = !isComputerScreenOpen;
+
+            if (isComputerScreenOpen) {
+                // Turn screen "on" - brighter blue with Windows XP style
+                computerScreen.material.color.setHex(0x5A9FD4);
+                computerScreen.material.emissive.setHex(0x0066CC);
+                
+                // Create overlay UI
+                createComputerUI();
+            } else {
+                // Turn screen "off" - back to dark green
+                computerScreen.material.color.setHex(0x1a472a);
+                computerScreen.material.emissive.setHex(0x0a1a0a);
+                
+                // Remove overlay UI
+                removeComputerUI();
+            }
+        }
+
+        function createComputerUI() {
+            const overlay = document.createElement('div');
+            overlay.id = 'computerOverlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 600px;
+                height: 450px;
+                background: linear-gradient(180deg, #0054A6 0%, #0072C6 10%, #0072C6 90%);
+                border: 3px solid #C0C0C0;
+                border-radius: 8px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+                z-index: 1000;
+                font-family: 'Trebuchet MS', sans-serif;
+                color: white;
+            `;
+
+            overlay.innerHTML = `
+                <div style="background: linear-gradient(180deg, #245EDC 0%, #1941A5 100%); padding: 8px; border-radius: 5px 5px 0 0; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-size: 14px; font-weight: bold;">🪟 Windows XP - My Computer</span>
+                    <button onclick="document.getElementById('computerOverlay').remove(); toggleComputerScreen();" style="background: #FF4444; color: white; border: none; width: 24px; height: 24px; border-radius: 3px; cursor: pointer; font-weight: bold;">✕</button>
+                </div>
+                <div style="padding: 20px; height: calc(100% - 100px); overflow-y: auto;">
+                    <h2 style="margin-top: 0; font-size: 20px;">📁 My Documents</h2>
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 20px;">
+                        <a href="YOUR_RESUME_LINK" target="_blank" style="text-decoration: none; color: white;">
+                            <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                                <img src="images/resume_img.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>📄</div>'">
+                                <div style="font-size: 12px; margin-top: 5px;">Resume</div>
+                            </div>
+                        </a>
+                        <a href="https://github.com/owencrouse" target="_blank" style="text-decoration: none; color: white;">
+                            <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                                <img src="images/github_img.webp" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🎵</div>'">
+                                <div style="font-size: 12px; margin-top: 5px;">GitHub</div>
+                            </div>
+                        </a>
+                        <a href="https://www.linkedin.com/in/owen-crouse-821989318" target="_blank" style="text-decoration: none; color: white;">
+                            <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                                <img src="images/linkedin_img.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🎮</div>'">
+                                <div style="font-size: 12px; margin-top: 5px;">LinkedIn</div>
+                            </div>
+                        </a>
+                        <a href="mailto:owencrouse2003@gmail.com" style="text-decoration: none; color: white;">
+                            <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                                <img src="images/gmail_img.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🖼️</div>'">
+                                <div style="font-size: 12px; margin-top: 5px;">Email</div>
+                            </div>
+                        </a>
+                        <a href="loadingscreen.html" target="_blank" style="text-decoration: none; color: white;">
+                            <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                                <img src="icons/tech-icon.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🌐</div>'">
+                                <div style="font-size: 12px; margin-top: 5px;">Learn about Tech</div>
+                            </div>
+                        </a>
+                        <a href="loadingscreen.html" target="_blank" style="text-decoration: none; color: white;">
+                            <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
+                                <img src="icons/simulator-icon.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>💿</div>'">
+                                <div style="font-size: 12px; margin-top: 5px;">Simulator</div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; height: 40px; background: linear-gradient(180deg, #1941A5 0%, #0F2B6B 100%); border-radius: 0 0 5px 5px; display: flex; align-items: center; padding: 0 10px; gap: 10px;">
+                    <button style="background: linear-gradient(180deg, #3CA03C 0%, #2D8B2D 100%); color: white; border: 1px solid #1A5E1A; padding: 5px 15px; border-radius: 3px; cursor: pointer; font-weight: bold;">🪟 Start</button>
+                    <div style="flex: 1; background: rgba(0,0,0,0.2); height: 30px; border-radius: 3px;"></div>
+                    <div style="font-size: 12px;">🔊 🔋 12:34 PM</div>
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+        }
+
+        function removeComputerUI() {
+            const overlay = document.getElementById('computerOverlay');
+            if (overlay) {
+                overlay.remove();
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsed = clock.getElapsedTime();
+
+            // Update clock hands with real time
+            const now = new Date();
+            const hours = now.getHours() % 12;
+            const minutes = now.getMinutes();
+            const seconds = now.getSeconds();
+
+            if (clock.secondHand) {
+                clock.secondHand.rotation.z = -(seconds * Math.PI / 30);
+            }
+            if (clock.minuteHand) {
+                clock.minuteHand.rotation.z = -(minutes * Math.PI / 30 + seconds * Math.PI / 1800);
+            }
+            if (clock.hourHand) {
+                clock.hourHand.rotation.z = -(hours * Math.PI / 6 + minutes * Math.PI / 360);
+            }
+
+            // Rotate ceiling fan
+            if (fan) {
+                fan.rotation.y += 0.05;
+            }
+
+            // Animate windows (pulsing light)
+            if (window1 && window2) {
+                const pulse = Math.sin(elapsed * 2) * 0.1 + 0.5;
+                window1.material.opacity = pulse;
+                window2.material.opacity = pulse;
+            }
+
+            // Gentle desk bob animation
+            desks.forEach((desk, i) => {
+                desk.position.y = 0.1 + Math.sin(elapsed + i * 0.5) * 0.02;
+            });
+
+            // Gentle chair rock
+            chairs.forEach((chair, i) => {
+                chair.rotation.z = Math.sin(elapsed * 0.5 + i * 0.3) * 0.01;
+            });
+
+            // Camera orbit when not dragging
+            if (!scene.userData.isDragging()) {
+                scene.userData.rotationY += 0.002;
+            }
+
+            const radius = camera.position.z;
+            camera.position.x = Math.sin(scene.userData.rotationY) * radius * 0.5;
+            camera.position.z = Math.cos(scene.userData.rotationY) * radius;
+            camera.lookAt(0, 4, -7.5);
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        init();
+        animate();
+    </script>
+</body>
+</html>
