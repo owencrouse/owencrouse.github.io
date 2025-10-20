@@ -37,6 +37,8 @@
         let computer, computerScreen;
         let raycaster, mouse;
         let isComputerScreenOpen = false;
+        let filingCabinet, drawerTop, drawerMiddle, drawerBottom;
+        let openDrawer = null;
 
         function init() {
             // Scene setup
@@ -155,6 +157,11 @@
             ceiling.position.y = 8;
             classroom.add(ceiling);
 
+            // Filing cabinet in back right corner
+            filingCabinet = createFilingCabinet();
+            filingCabinet.position.set(7, 1, -6);
+            classroom.add(filingCabinet);
+
             // Blackboard
             const boardGeometry = new THREE.BoxGeometry(6, 3, 0.1);
             const boardMaterial = new THREE.MeshStandardMaterial({ color: 0x2F4F2F });
@@ -182,6 +189,9 @@
 
             ctx.font = '50px Sacramento';
             ctx.fillText('Access Computer to Learn More', canvas.width / 2, 350);
+
+            ctx.font = '50px Sacramento';
+            ctx.fillText('Open Filing Cabinets to Explore Past Projects', canvas.width / 2, 450);
 
         
 
@@ -475,6 +485,213 @@
 
             return desk;
         }
+            function createFilingCabinet() {
+                const cabinet = new THREE.Group();
+
+                // Main body
+                const body = new THREE.Mesh(
+                    new THREE.BoxGeometry(1, 2, 0.8),
+                    new THREE.MeshStandardMaterial({ color: 0x696969 })
+                );
+                body.castShadow = true;
+                cabinet.add(body);
+
+                // Top drawer
+                drawerTop = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.95, 0.6, 0.75),
+                    new THREE.MeshStandardMaterial({ color: 0x808080 })
+                );
+                drawerTop.position.set(0, 0.65, 0);
+                drawerTop.castShadow = true;
+                drawerTop.userData.clickable = true;
+                drawerTop.userData.drawerName = 'top';
+                drawerTop.userData.isOpen = false;
+                drawerTop.userData.closedZ = 0;
+                cabinet.add(drawerTop);
+
+                // Top drawer handle
+                const handleTop = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 0.05, 0.05),
+                    new THREE.MeshStandardMaterial({ color: 0x000000 })
+                );
+                handleTop.position.set(0, 0.65, 0.4);
+                cabinet.add(handleTop);
+
+                // Middle drawer
+                drawerMiddle = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.95, 0.6, 0.75),
+                    new THREE.MeshStandardMaterial({ color: 0x808080 })
+                );
+                drawerMiddle.position.set(0, 0, 0);
+                drawerMiddle.castShadow = true;
+                drawerMiddle.userData.clickable = true;
+                drawerMiddle.userData.drawerName = 'middle';
+                drawerMiddle.userData.isOpen = false;
+                drawerMiddle.userData.closedZ = 0;
+                cabinet.add(drawerMiddle);
+
+                // Middle drawer handle
+                const handleMiddle = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 0.05, 0.05),
+                    new THREE.MeshStandardMaterial({ color: 0x000000 })
+                );
+                handleMiddle.position.set(0, 0, 0.4);
+                cabinet.add(handleMiddle);
+
+                // Bottom drawer
+                drawerBottom = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.95, 0.6, 0.75),
+                    new THREE.MeshStandardMaterial({ color: 0x808080 })
+                );
+                drawerBottom.position.set(0, -0.65, 0);
+                drawerBottom.castShadow = true;
+                drawerBottom.userData.clickable = true;
+                drawerBottom.userData.drawerName = 'bottom';
+                drawerBottom.userData.isOpen = false;
+                drawerBottom.userData.closedZ = 0;
+                cabinet.add(drawerBottom);
+
+                // Bottom drawer handle
+                const handleBottom = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.3, 0.05, 0.05),
+                    new THREE.MeshStandardMaterial({ color: 0x000000 })
+                );
+                handleBottom.position.set(0, -0.65, 0.4);
+                cabinet.add(handleBottom);
+
+                return cabinet;
+            }
+        
+            function toggleDrawer(drawer) {
+                // Close other drawers first
+                [drawerTop, drawerMiddle, drawerBottom].forEach(d => {
+                    if (d !== drawer && d.userData.isOpen) {
+                        d.userData.isOpen = false;
+                        d.position.z = d.userData.closedZ;
+                    }
+                });
+
+                // Toggle clicked drawer
+                drawer.userData.isOpen = !drawer.userData.isOpen;
+                
+                if (drawer.userData.isOpen) {
+                    drawer.position.z = drawer.userData.closedZ + 0.5;
+                    openDrawer = drawer.userData.drawerName;
+                    showDrawerDocument(drawer.userData.drawerName);
+                } else {
+                    drawer.position.z = drawer.userData.closedZ;
+                    closeDrawerDocument();
+                }
+            }
+
+            function showDrawerDocument(drawerName) {
+                const overlay = document.createElement('div');
+                overlay.id = 'drawerOverlay';
+                overlay.style.cssText = `
+                    position: fixed;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    width: 700px;
+                    height: 550px;
+                    background: white;
+                    border: 3px solid #333;
+                    border-radius: 8px;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+                    z-index: 1000;
+                    font-family: 'Times New Roman', serif;
+                    color: #000;
+                `;
+
+                let content = '';
+                if (drawerName === 'top') {
+                    content = `
+                        <h2 style="color: #2F4F2F; border-bottom: 2px solid #2F4F2F; padding-bottom: 10px;">📋 Projects & Portfolio</h2>
+                        <div style="padding: 20px; line-height: 1.8;">
+                            <h3>Featured Projects:</h3>
+                            <ul>
+                                <li><strong>Firewall Engineering + Netfilter</strong> — Developed a custom packet-filtering firewall at the Linux kernel level using <em>iptables</em> and <em>Netfilter</em>. Implemented rule sets for traffic control and analyzed hook invocation stages. Built containerized environments in Docker Compose for multi-host simulation.</li>
+                                <li><strong>Premier League Stat Predictor</strong> — Built a machine learning pipeline in <em>Python</em> (Pandas, XGBoost, Jupyter) to predict Fantasy Premier League player performance using feature-engineered data like opponent strength and dynamic scoring metrics.</li>
+                                <li><strong>Inventory Web Server</strong> — Designed a three-tier PHP/MySQL/Apache web system supporting login, search, update, and delete operations with prepared statements to ensure data security and integrity.</li>
+                                <li><strong>LED Distance Display</strong> — Created a Raspberry Pi–based sensing system integrating an ultrasonic sensor, servo motor, potentiometer, and 8×8 LED matrix to visualize object distance in real time using <em>Python</em> and <em>GPIO</em>.</li>
+                            </ul>
+                            <p style="margin-top: 20px; font-style: italic;">Explore these projects to see applied skills in networking, hardware interfacing, machine learning, and full-stack web development.</p>
+                        </div>
+                    `;
+                } else if (drawerName === 'middle') {
+                    content = `
+                        <h2 style="color: #1941A5; border-bottom: 2px solid #1941A5; padding-bottom: 10px;">📚 Education & Certifications</h2>
+                        <div style="padding: 20px; line-height: 1.8;">
+                            <h3>Education:</h3>
+                            <p><strong>Bachelor of Science in Computer Science</strong><br>
+                            Wilfrid Laurier University, Waterloo, ON<br>
+                            <em>September 2021 – August 2025</em></p>
+
+                            <h3 style="margin-top: 20px;">Relevant Courses:</h3>
+                            <ul>
+                                <li><strong>Computer Science:</strong> Data Structures, Algorithms, Operating Systems, Database Systems, Computer Networks, Software Engineering, Cryptography, Computer Security, Theory of Computation, Physical Electronics</li>
+                                <li><strong>Mathematics:</strong> Discrete Mathematics, Linear Algebra, Probability & Statistics, Calculus I/II</li>
+                            </ul>
+
+                            <h3 style="margin-top: 20px;">Technical Skills:</h3>
+                            <ul>
+                                <li><strong>Languages:</strong> Java, Python, C/C++, MySQL, JavaScript, HTML/CSS, PHP, VBA, R</li>
+                                <li><strong>Developer Tools:</strong> Git, VS Code, Eclipse, Oracle VirtualBox/VMware</li>
+                                <li><strong>Libraries:</strong> Pandas, NumPy, nltk</li>
+                                <li><strong>Additional Tools:</strong> PowerShell, Microsoft 365, Google Drive, Excel, CAD</li>
+                            </ul>
+                        </div>
+                    `;
+                } else if (drawerName === 'bottom') {
+                    content = `
+                        <h2 style="color: #8B4513; border-bottom: 2px solid #8B4513; padding-bottom: 10px;">💼 Work Experience</h2>
+                        <div style="padding: 20px; line-height: 1.8;">
+                            <h3>IT Support Technician</h3>
+                            <p><strong>Adiventus</strong> | New Hamburg, ON | <em>Aug 2025 – Present</em><br>
+                            • Diagnosed and resolved hardware/software issues across Windows and Linux systems.<br>
+                            • Automated workflows using Python and Bash scripts.<br>
+                            • Maintained MySQL databases for data tracking and reporting.<br>
+                            • Collaborated with senior IT staff to document and optimize troubleshooting processes.</p>
+
+                            <h3 style="margin-top: 20px;">General Labourer</h3>
+                            <p><strong>Ghent Landscape</strong> | Petersburg, ON | <em>April – Sept 2021–2025</em><br>
+                            • Assisted with retaining walls, interlock patios, and excavations.<br>
+                            • Operated landscape construction tools and heavy equipment safely.<br>
+                            • Communicated with the foreman to ensure project success.</p>
+
+                            <h3 style="margin-top: 20px;">Personal Trainer</h3>
+                            <p><strong>Wilfrid Laurier University</strong> | Waterloo, ON | <em>Sep 2021 – Present</em><br>
+                            • Coordinated client schedules and developed personalized training plans.<br>
+                            • Ensured proper maintenance and setup of equipment for safety and performance.</p>
+
+                            <h3 style="margin-top: 20px;">Retail Associate</h3>
+                            <p><strong>Athena Art and Gift Store</strong> | Kitchener, ON | <em>Dec 2016 – Aug 2020</em><br>
+                            • Managed inventory and product displays.<br>
+                            • Delivered strong customer service and handled cash/credit transactions.</p>
+                        </div>
+                    `;
+                }
+
+                overlay.innerHTML = `
+                    <div style="background: linear-gradient(180deg, #f0f0f0 0%, #e0e0e0 100%); padding: 15px; border-radius: 5px 5px 0 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ccc;">
+                        <span style="font-size: 16px; font-weight: bold; color: #333;">📁 Filing Cabinet - ${drawerName.charAt(0).toUpperCase() + drawerName.slice(1)} Drawer</span>
+                        <button onclick="document.getElementById('drawerOverlay').remove(); toggleDrawer(${drawerName === 'top' ? 'drawerTop' : drawerName === 'middle' ? 'drawerMiddle' : 'drawerBottom'});" style="background: #FF4444; color: white; border: none; width: 30px; height: 30px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 18px;">✕</button>
+                    </div>
+                    <div style="padding: 30px; height: calc(100% - 80px); overflow-y: auto; background: #fafafa;">
+                        ${content}
+                    </div>
+                `;
+
+                document.body.appendChild(overlay);
+
+                }
+                
+            function closeDrawerDocument() {
+                const overlay = document.getElementById('drawerOverlay');
+                if (overlay) {
+                    overlay.remove();
+                }
+            }
 
         function createChair() {
             const chair = new THREE.Group();
@@ -600,8 +817,13 @@
 
             for (let intersect of intersects) {
                 if (intersect.object.userData.clickable) {
-                    toggleComputerScreen();
-                    break;
+                    if (intersect.object === computerScreen) {
+                        toggleComputerScreen();
+                        break;
+                    } else if (intersect.object.userData.drawerName) {
+                        toggleDrawer(intersect.object);
+                        break;
+                    }
                 }
             }
         }
