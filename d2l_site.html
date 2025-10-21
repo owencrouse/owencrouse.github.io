@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Animated Classroom</title>
+    <link href="https://fonts.googleapis.com/css2?family=Sacramento&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -27,11 +28,17 @@
     </style>
 </head>
 <body>
+    <div id="info">
+        <strong>Interactive Classroom</strong><br>
+        • Click computer screen to explore<br>
+        • Click blackboard to view from back<br>
+        • Click filing cabinet drawers<br>
+    </div>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script>
         let scene, camera, renderer, classroom;
-        let clock, fan, door, window1, window2;
+        let clockObj, fan, door, window1, window2;
         let desks = [];
         let chairs = [];
         let computer, computerScreen;
@@ -40,29 +47,33 @@
         let filingCabinet, drawerTop, drawerMiddle, drawerBottom;
         let openDrawer = null;
 
+        let isZoomedIn = false;
+        let cameraAnimating = false;
+        let currentView = 'default';
+        const defaultCameraPos = { x: 0, y: 4, z: 12 };
+        const zoomedCameraPos = { x: 0.4, y: 2.2, z: -4 };
+        const blackboardCameraPos = { x: 0, y: 4, z: 1 };
+
+        let hourHand, minuteHand, secondHand;
+
         function init() {
-            // Scene setup
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x87CEEB);
             scene.fog = new THREE.Fog(0x87CEEB, 30, 60);
 
-            // Camera
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             camera.position.set(0, 4, 12);
             camera.lookAt(0, 4, -7.5);
 
-            // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
             renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             document.body.appendChild(renderer.domElement);
 
-            // Raycaster for clicking
             raycaster = new THREE.Raycaster();
             mouse = new THREE.Vector2();
 
-            // Lights
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
@@ -73,54 +84,17 @@
             directionalLight.shadow.mapSize.height = 2048;
             scene.add(directionalLight);
 
-            // Create classroom
             createClassroom();
 
-            // Mouse controls
-            let isDragging = false;
-            let previousMouseX = 0;
-            let rotationY = 0;
-            let rotationX = 0.3;
-
-            renderer.domElement.addEventListener('mousedown', (e) => {
-                isDragging = true;
-                previousMouseX = e.clientX;
-            });
-
-            renderer.domElement.addEventListener('mousemove', (e) => {
-                if (isDragging) {
-                    const deltaX = e.clientX - previousMouseX;
-                    rotationY += deltaX * 0.005;
-                    previousMouseX = e.clientX;
-                }
-            });
-
-            renderer.domElement.addEventListener('mouseup', () => {
-                isDragging = false;
-            });
-
             renderer.domElement.addEventListener('click', onMouseClick);
-
-            renderer.domElement.addEventListener('wheel', (e) => {
-                e.preventDefault();
-                camera.position.z += e.deltaY * 0.01;
-                camera.position.z = Math.max(10, Math.min(30, camera.position.z));
-            });
-
             window.addEventListener('resize', onWindowResize);
 
-            // Store rotation for animation
-            scene.userData.rotationY = rotationY;
-            scene.userData.rotationX = rotationX;
-            scene.userData.isDragging = () => isDragging;
-
-            clock = new THREE.Clock();
+            clockObj = new THREE.Clock();
         }
-
+        
         function createClassroom() {
             classroom = new THREE.Group();
 
-            // Floor
             const floorGeometry = new THREE.BoxGeometry(20, 0.2, 15);
             const floorMaterial = new THREE.MeshStandardMaterial({ color: 0xF0F0F0 });
             const floor = new THREE.Mesh(floorGeometry, floorMaterial);
@@ -128,17 +102,14 @@
             floor.receiveShadow = true;
             classroom.add(floor);
 
-            // Walls
             const wallMaterial = new THREE.MeshStandardMaterial({ color: 0xE3D7CA });
             
-            // Back wall
             const backWallGeometry = new THREE.BoxGeometry(20, 8, 0.2);
             const backWall = new THREE.Mesh(backWallGeometry, wallMaterial);
             backWall.position.set(0, 4, -7.5);
             backWall.receiveShadow = true;
             classroom.add(backWall);
 
-            // Side walls
             const sideWallGeometry = new THREE.BoxGeometry(0.2, 8, 15);
             const leftWall = new THREE.Mesh(sideWallGeometry, wallMaterial);
             leftWall.position.set(-10, 4, 0);
@@ -150,52 +121,43 @@
             rightWall.receiveShadow = true;
             classroom.add(rightWall);
 
-            // Ceiling
             const ceilingGeometry = new THREE.BoxGeometry(20, 0.2, 15);
             const ceilingMaterial = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
             const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial);
             ceiling.position.y = 8;
             classroom.add(ceiling);
 
-            // Filing cabinet in back right corner
             filingCabinet = createFilingCabinet();
             filingCabinet.position.set(7, 1, -6);
             classroom.add(filingCabinet);
 
-            // Blackboard
             const boardGeometry = new THREE.BoxGeometry(6, 3, 0.1);
             const boardMaterial = new THREE.MeshStandardMaterial({ color: 0x2F4F2F });
             const board = new THREE.Mesh(boardGeometry, boardMaterial);
             board.position.set(0, 4, -7.3);
+            board.userData.clickable = true;
+            board.userData.isBlackboard = true;
             classroom.add(board);
 
-            // Add text to blackboard using canvas texture
             const canvas = document.createElement('canvas');
             canvas.width = 1024;
             canvas.height = 512;
             const ctx = canvas.getContext('2d');
 
-            // Fill with chalkboard color
             ctx.fillStyle = '#2F4F2F';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Draw chalk text
             ctx.fillStyle = '#FFFFFF';
-            ctx.font = 'bold 55px Sacramento';
+            ctx.font = 'bold 55px Sacramento, cursive';
             ctx.textAlign = 'center';
             ctx.fillText("Welcome to Owen Crouse's Classroom", canvas.width / 2, 150);
 
-           
-
-            ctx.font = '50px Sacramento';
+            ctx.font = '50px Sacramento, cursive';
             ctx.fillText('Access Computer to Learn More', canvas.width / 2, 350);
 
-            ctx.font = '50px Sacramento';
+            ctx.font = '50px Sacramento, cursive';
             ctx.fillText('Open Filing Cabinets to Explore Past Projects', canvas.width / 2, 450);
 
-        
-
-            // Add some chalk dust effect
             ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
             for (let i = 0; i < 50; i++) {
                 const x = Math.random() * canvas.width;
@@ -204,7 +166,6 @@
                 ctx.fillRect(x, y, size, size);
             }
 
-            // Create texture from canvas
             const textTexture = new THREE.CanvasTexture(canvas);
             const textMaterial = new THREE.MeshStandardMaterial({ 
                 map: textTexture,
@@ -217,18 +178,15 @@
             textPlane.position.set(0, 4, -7.25);
             classroom.add(textPlane);
 
-            // Teacher's desk
             const teacherDesk = createDesk(0x8B4513);
             teacherDesk.position.set(0, 0.1, -5);
             teacherDesk.scale.set(1.5, 1, 1.2);
             classroom.add(teacherDesk);
 
-            // Add 2000s computer to teacher's desk
             computer = create2000sComputer();
             computer.position.set(0.4, 1.65, -5);
             classroom.add(computer);
 
-            // Student desks and chairs
             for (let row = 0; row < 3; row++) {
                 for (let col = 0; col < 4; col++) {
                     const desk = createDesk(0xD2691E);
@@ -238,12 +196,17 @@
 
                     const chair = createChair();
                     chair.position.set(-6 + col * 4, 0.1, 1.5 + row * 3);
+                    chair.rotation.y = Math.PI;
                     chairs.push(chair);
                     classroom.add(chair);
+
+                    const studentComputer = create2000sComputer();
+                    studentComputer.position.set(-6 + col * 4, 1.65, 0 + row * 3);
+                    studentComputer.scale.set(0.8, 0.8, 0.8);
+                    classroom.add(studentComputer);
                 }
             }
 
-            // Windows
             const windowGeometry = new THREE.BoxGeometry(2, 3, 0.1);
             const windowMaterial = new THREE.MeshStandardMaterial({ 
                 color: 0x87CEEB, 
@@ -261,7 +224,6 @@
             window2.rotation.y = Math.PI / 2;
             classroom.add(window2);
 
-            // Door
             const doorGeometry = new THREE.BoxGeometry(2, 4, 0.1);
             const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
             door = new THREE.Mesh(doorGeometry, doorMaterial);
@@ -269,7 +231,6 @@
             door.rotation.y = -Math.PI / 2;
             classroom.add(door);
 
-            // Ceiling fan
             fan = new THREE.Group();
             const fanBase = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.3, 0.3, 0.5, 16),
@@ -288,9 +249,7 @@
             fan.position.set(0, 7.5, 0);
             classroom.add(fan);
 
-            // Add posters to walls
             createPosters();
-
             scene.add(classroom);
         }
 
@@ -399,7 +358,6 @@
             poster6Content.rotation.y = -Math.PI / 2;
             classroom.add(poster6Content);
 
-            // Clock on back wall
             const clockFrame = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.4, 0.4, 0.1, 32),
                 new THREE.MeshStandardMaterial({ color: 0x000000 })
@@ -416,25 +374,23 @@
             clockFace.position.set(3, 6.5, -7.3);
             classroom.add(clockFace);
 
-            const hourHand = new THREE.Mesh(
-                new THREE.BoxGeometry(0.25, 0.25, 0.02),
+            hourHand = new THREE.Mesh(
+                new THREE.BoxGeometry(0.05, 0.15, 0.02),
                 new THREE.MeshStandardMaterial({ color: 0x000000 })
             );
-            hourHand.position.set(3, 6.5, -7.29);
+            hourHand.position.set(3, 6.5, -7.25);
             hourHand.rotation.x = Math.PI / 2;
             classroom.add(hourHand);
 
-            // Minute hand
-            const minuteHand = new THREE.Mesh(
-                new THREE.BoxGeometry(0.12, 0.70, 0.02),
+            minuteHand = new THREE.Mesh(
+                new THREE.BoxGeometry(0.03, 0.25, 0.02),
                 new THREE.MeshStandardMaterial({ color: 0x000000 })
             );
             minuteHand.position.set(3, 6.5, -7.24);
             minuteHand.rotation.x = Math.PI / 2;
             classroom.add(minuteHand);
 
-            // Second hand
-            const secondHand = new THREE.Mesh(
+            secondHand = new THREE.Mesh(
                 new THREE.BoxGeometry(0.02, 0.28, 0.02),
                 new THREE.MeshStandardMaterial({ color: 0xFF0000 })
             );
@@ -442,7 +398,6 @@
             secondHand.rotation.x = Math.PI / 2;
             classroom.add(secondHand);
 
-            // Center dot
             const centerDot = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.03, 0.03, 0.02, 16),
                 new THREE.MeshStandardMaterial({ color: 0x000000 })
@@ -450,13 +405,11 @@
             centerDot.rotation.x = Math.PI / 2;
             centerDot.position.set(3, 6.5, -7.22);
             classroom.add(centerDot);
+        }
 
-                    }
-
-            function createDesk(color) {
-                const desk = new THREE.Group();
-                
-            // Desktop
+        function createDesk(color) {
+            const desk = new THREE.Group();
+            
             const top = new THREE.Mesh(
                 new THREE.BoxGeometry(1.5, 0.1, 1),
                 new THREE.MeshStandardMaterial({ color: color })
@@ -465,7 +418,6 @@
             top.castShadow = true;
             desk.add(top);
 
-            // Legs
             const legGeometry = new THREE.BoxGeometry(0.1, 1, 0.1);
             const legMaterial = new THREE.MeshStandardMaterial({ color: color });
             
@@ -485,218 +437,199 @@
 
             return desk;
         }
-            function createFilingCabinet() {
-                const cabinet = new THREE.Group();
 
-                // Main body
-                const body = new THREE.Mesh(
-                    new THREE.BoxGeometry(1, 2, 0.8),
-                    new THREE.MeshStandardMaterial({ color: 0x696969 })
-                );
-                body.castShadow = true;
-                cabinet.add(body);
+        function createFilingCabinet() {
+            const cabinet = new THREE.Group();
 
-                // Top drawer
-                drawerTop = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.95, 0.6, 0.75),
-                    new THREE.MeshStandardMaterial({ color: 0x808080 })
-                );
-                drawerTop.position.set(0, 0.65, 0);
-                drawerTop.castShadow = true;
-                drawerTop.userData.clickable = true;
-                drawerTop.userData.drawerName = 'top';
-                drawerTop.userData.isOpen = false;
-                drawerTop.userData.closedZ = 0;
-                cabinet.add(drawerTop);
+            const body = new THREE.Mesh(
+                new THREE.BoxGeometry(1, 2, 0.8),
+                new THREE.MeshStandardMaterial({ color: 0x696969 })
+            );
+            body.castShadow = true;
+            cabinet.add(body);
 
-                // Top drawer handle
-                const handleTop = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.3, 0.05, 0.05),
-                    new THREE.MeshStandardMaterial({ color: 0x000000 })
-                );
-                handleTop.position.set(0, 0.65, 0.4);
-                cabinet.add(handleTop);
+            drawerTop = new THREE.Mesh(
+                new THREE.BoxGeometry(0.95, 0.6, 0.75),
+                new THREE.MeshStandardMaterial({ color: 0x808080 })
+            );
+            drawerTop.position.set(0, 0.65, 0);
+            drawerTop.castShadow = true;
+            drawerTop.userData.clickable = true;
+            drawerTop.userData.drawerName = 'top';
+            drawerTop.userData.isOpen = false;
+            drawerTop.userData.closedZ = 0;
+            cabinet.add(drawerTop);
 
-                // Middle drawer
-                drawerMiddle = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.95, 0.6, 0.75),
-                    new THREE.MeshStandardMaterial({ color: 0x808080 })
-                );
-                drawerMiddle.position.set(0, 0, 0);
-                drawerMiddle.castShadow = true;
-                drawerMiddle.userData.clickable = true;
-                drawerMiddle.userData.drawerName = 'middle';
-                drawerMiddle.userData.isOpen = false;
-                drawerMiddle.userData.closedZ = 0;
-                cabinet.add(drawerMiddle);
+            const handleTop = new THREE.Mesh(
+                new THREE.BoxGeometry(0.3, 0.05, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            handleTop.position.set(0, 0.65, 0.4);
+            cabinet.add(handleTop);
 
-                // Middle drawer handle
-                const handleMiddle = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.3, 0.05, 0.05),
-                    new THREE.MeshStandardMaterial({ color: 0x000000 })
-                );
-                handleMiddle.position.set(0, 0, 0.4);
-                cabinet.add(handleMiddle);
+            drawerMiddle = new THREE.Mesh(
+                new THREE.BoxGeometry(0.95, 0.6, 0.75),
+                new THREE.MeshStandardMaterial({ color: 0x808080 })
+            );
+            drawerMiddle.position.set(0, 0, 0);
+            drawerMiddle.castShadow = true;
+            drawerMiddle.userData.clickable = true;
+            drawerMiddle.userData.drawerName = 'middle';
+            drawerMiddle.userData.isOpen = false;
+            drawerMiddle.userData.closedZ = 0;
+            cabinet.add(drawerMiddle);
 
-                // Bottom drawer
-                drawerBottom = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.95, 0.6, 0.75),
-                    new THREE.MeshStandardMaterial({ color: 0x808080 })
-                );
-                drawerBottom.position.set(0, -0.65, 0);
-                drawerBottom.castShadow = true;
-                drawerBottom.userData.clickable = true;
-                drawerBottom.userData.drawerName = 'bottom';
-                drawerBottom.userData.isOpen = false;
-                drawerBottom.userData.closedZ = 0;
-                cabinet.add(drawerBottom);
+            const handleMiddle = new THREE.Mesh(
+                new THREE.BoxGeometry(0.3, 0.05, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            handleMiddle.position.set(0, 0, 0.4);
+            cabinet.add(handleMiddle);
 
-                // Bottom drawer handle
-                const handleBottom = new THREE.Mesh(
-                    new THREE.BoxGeometry(0.3, 0.05, 0.05),
-                    new THREE.MeshStandardMaterial({ color: 0x000000 })
-                );
-                handleBottom.position.set(0, -0.65, 0.4);
-                cabinet.add(handleBottom);
+            drawerBottom = new THREE.Mesh(
+                new THREE.BoxGeometry(0.95, 0.6, 0.75),
+                new THREE.MeshStandardMaterial({ color: 0x808080 })
+            );
+            drawerBottom.position.set(0, -0.65, 0);
+            drawerBottom.castShadow = true;
+            drawerBottom.userData.clickable = true;
+            drawerBottom.userData.drawerName = 'bottom';
+            drawerBottom.userData.isOpen = false;
+            drawerBottom.userData.closedZ = 0;
+            cabinet.add(drawerBottom);
 
-                return cabinet;
-            }
-        
-            function toggleDrawer(drawer) {
-                // Close other drawers first
-                [drawerTop, drawerMiddle, drawerBottom].forEach(d => {
-                    if (d !== drawer && d.userData.isOpen) {
-                        d.userData.isOpen = false;
-                        d.position.z = d.userData.closedZ;
-                    }
-                });
+            const handleBottom = new THREE.Mesh(
+                new THREE.BoxGeometry(0.3, 0.05, 0.05),
+                new THREE.MeshStandardMaterial({ color: 0x000000 })
+            );
+            handleBottom.position.set(0, -0.65, 0.4);
+            cabinet.add(handleBottom);
 
-                // Toggle clicked drawer
-                drawer.userData.isOpen = !drawer.userData.isOpen;
-                
-                if (drawer.userData.isOpen) {
-                    drawer.position.z = drawer.userData.closedZ + 0.5;
-                    openDrawer = drawer.userData.drawerName;
-                    showDrawerDocument(drawer.userData.drawerName);
-                } else {
-                    drawer.position.z = drawer.userData.closedZ;
-                    closeDrawerDocument();
+            return cabinet;
+        }
+    
+        function toggleDrawer(drawer) {
+            [drawerTop, drawerMiddle, drawerBottom].forEach(d => {
+                if (d !== drawer && d.userData.isOpen) {
+                    d.userData.isOpen = false;
+                    d.position.z = d.userData.closedZ;
                 }
+            });
+
+            drawer.userData.isOpen = !drawer.userData.isOpen;
+            
+            if (drawer.userData.isOpen) {
+                drawer.position.z = drawer.userData.closedZ + 0.5;
+                openDrawer = drawer.userData.drawerName;
+                showDrawerDocument(drawer.userData.drawerName);
+            } else {
+                drawer.position.z = drawer.userData.closedZ;
+                closeDrawerDocument();
             }
+        }
 
-            function showDrawerDocument(drawerName) {
-                const overlay = document.createElement('div');
-                overlay.id = 'drawerOverlay';
-                overlay.style.cssText = `
-                    position: fixed;
-                    top: 50%;
-                    left: 50%;
-                    transform: translate(-50%, -50%);
-                    width: 700px;
-                    height: 550px;
-                    background: white;
-                    border: 3px solid #333;
-                    border-radius: 8px;
-                    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
-                    z-index: 1000;
-                    font-family: 'Times New Roman', serif;
-                    color: #000;
-                `;
+        window.closeDrawerAndOverlay = function(drawerName) {
+            closeDrawerDocument();
+            if (drawerName === 'top' && drawerTop.userData.isOpen) {
+                toggleDrawer(drawerTop);
+            } else if (drawerName === 'middle' && drawerMiddle.userData.isOpen) {
+                toggleDrawer(drawerMiddle);
+            } else if (drawerName === 'bottom' && drawerBottom.userData.isOpen) {
+                toggleDrawer(drawerBottom);
+            }
+        };
 
-                let content = '';
-                if (drawerName === 'top') {
-                    content = `
-                        <h2 style="color: #2F4F2F; border-bottom: 2px solid #2F4F2F; padding-bottom: 10px;">📋 Projects & Portfolio</h2>
-                        <div style="padding: 20px; line-height: 1.8;">
-                            <h3>Featured Projects:</h3>
-                            <ul>
-                                <li><strong>Firewall Engineering + Netfilter</strong> — Developed a custom packet-filtering firewall at the Linux kernel level using <em>iptables</em> and <em>Netfilter</em>. Implemented rule sets for traffic control and analyzed hook invocation stages. Built containerized environments in Docker Compose for multi-host simulation.</li>
-                                <li><strong>Premier League Stat Predictor</strong> — Built a machine learning pipeline in <em>Python</em> (Pandas, XGBoost, Jupyter) to predict Fantasy Premier League player performance using feature-engineered data like opponent strength and dynamic scoring metrics.</li>
-                                <li><strong>Inventory Web Server</strong> — Designed a three-tier PHP/MySQL/Apache web system supporting login, search, update, and delete operations with prepared statements to ensure data security and integrity.</li>
-                                <li><strong>LED Distance Display</strong> — Created a Raspberry Pi–based sensing system integrating an ultrasonic sensor, servo motor, potentiometer, and 8×8 LED matrix to visualize object distance in real time using <em>Python</em> and <em>GPIO</em>.</li>
-                            </ul>
-                            <p style="margin-top: 20px; font-style: italic;">Explore these projects to see applied skills in networking, hardware interfacing, machine learning, and full-stack web development.</p>
-                        </div>
-                    `;
-                } else if (drawerName === 'middle') {
-                    content = `
-                        <h2 style="color: #1941A5; border-bottom: 2px solid #1941A5; padding-bottom: 10px;">📚 Education & Certifications</h2>
-                        <div style="padding: 20px; line-height: 1.8;">
-                            <h3>Education:</h3>
-                            <p><strong>Bachelor of Science in Computer Science</strong><br>
-                            Wilfrid Laurier University, Waterloo, ON<br>
-                            <em>September 2021 – August 2025</em></p>
+        function showDrawerDocument(drawerName) {
+            closeDrawerDocument();
+            
+            const overlay = document.createElement('div');
+            overlay.id = 'drawerOverlay';
+            overlay.style.cssText = `
+                position: fixed;
+                top: 50%;
+                left: 50%;
+                transform: translate(-50%, -50%);
+                width: 700px;
+                height: 550px;
+                background: white;
+                border: 3px solid #333;
+                border-radius: 8px;
+                box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+                z-index: 1000;
+                font-family: 'Times New Roman', serif;
+                color: #000;
+            `;
 
-                            <h3 style="margin-top: 20px;">Relevant Courses:</h3>
-                            <ul>
-                                <li><strong>Computer Science:</strong> Data Structures, Algorithms, Operating Systems, Database Systems, Computer Networks, Software Engineering, Cryptography, Computer Security, Theory of Computation, Physical Electronics</li>
-                                <li><strong>Mathematics:</strong> Discrete Mathematics, Linear Algebra, Probability & Statistics, Calculus I/II</li>
-                            </ul>
-
-                            <h3 style="margin-top: 20px;">Technical Skills:</h3>
-                            <ul>
-                                <li><strong>Languages:</strong> Java, Python, C/C++, MySQL, JavaScript, HTML/CSS, PHP, VBA, R</li>
-                                <li><strong>Developer Tools:</strong> Git, VS Code, Eclipse, Oracle VirtualBox/VMware</li>
-                                <li><strong>Libraries:</strong> Pandas, NumPy, nltk</li>
-                                <li><strong>Additional Tools:</strong> PowerShell, Microsoft 365, Google Drive, Excel, CAD</li>
-                            </ul>
-                        </div>
-                    `;
-                } else if (drawerName === 'bottom') {
-                    content = `
-                        <h2 style="color: #8B4513; border-bottom: 2px solid #8B4513; padding-bottom: 10px;">💼 Work Experience</h2>
-                        <div style="padding: 20px; line-height: 1.8;">
-                            <h3>IT Support Technician</h3>
-                            <p><strong>Adiventus</strong> | New Hamburg, ON | <em>Aug 2025 – Present</em><br>
-                            • Diagnosed and resolved hardware/software issues across Windows and Linux systems.<br>
-                            • Automated workflows using Python and Bash scripts.<br>
-                            • Maintained MySQL databases for data tracking and reporting.<br>
-                            • Collaborated with senior IT staff to document and optimize troubleshooting processes.</p>
-
-                            <h3 style="margin-top: 20px;">General Labourer</h3>
-                            <p><strong>Ghent Landscape</strong> | Petersburg, ON | <em>April – Sept 2021–2025</em><br>
-                            • Assisted with retaining walls, interlock patios, and excavations.<br>
-                            • Operated landscape construction tools and heavy equipment safely.<br>
-                            • Communicated with the foreman to ensure project success.</p>
-
-                            <h3 style="margin-top: 20px;">Personal Trainer</h3>
-                            <p><strong>Wilfrid Laurier University</strong> | Waterloo, ON | <em>Sep 2021 – Present</em><br>
-                            • Coordinated client schedules and developed personalized training plans.<br>
-                            • Ensured proper maintenance and setup of equipment for safety and performance.</p>
-
-                            <h3 style="margin-top: 20px;">Retail Associate</h3>
-                            <p><strong>Athena Art and Gift Store</strong> | Kitchener, ON | <em>Dec 2016 – Aug 2020</em><br>
-                            • Managed inventory and product displays.<br>
-                            • Delivered strong customer service and handled cash/credit transactions.</p>
-                        </div>
-                    `;
-                }
-
-                overlay.innerHTML = `
-                    <div style="background: linear-gradient(180deg, #f0f0f0 0%, #e0e0e0 100%); padding: 15px; border-radius: 5px 5px 0 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ccc;">
-                        <span style="font-size: 16px; font-weight: bold; color: #333;">📁 Filing Cabinet - ${drawerName.charAt(0).toUpperCase() + drawerName.slice(1)} Drawer</span>
-                        <button onclick="document.getElementById('drawerOverlay').remove(); toggleDrawer(${drawerName === 'top' ? 'drawerTop' : drawerName === 'middle' ? 'drawerMiddle' : 'drawerBottom'});" style="background: #FF4444; color: white; border: none; width: 30px; height: 30px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 18px;">✕</button>
-                    </div>
-                    <div style="padding: 30px; height: calc(100% - 80px); overflow-y: auto; background: #fafafa;">
-                        ${content}
+            let content = '';
+            if (drawerName === 'top') {
+                content = `
+                    <h2 style="color: #2F4F2F; border-bottom: 2px solid #2F4F2F; padding-bottom: 10px;">📋 Projects & Portfolio</h2>
+                    <div style="padding: 20px; line-height: 1.8;">
+                        <h3>Featured Projects:</h3>
+                        <ul>
+                            <li><strong>Firewall Engineering + Netfilter</strong> — Developed a custom packet-filtering firewall at the Linux kernel level using <em>iptables</em> and <em>Netfilter</em>.</li>
+                            <li><strong>Premier League Stat Predictor</strong> — Built a machine learning pipeline in <em>Python</em> (Pandas, XGBoost, Jupyter) to predict Fantasy Premier League player performance.</li>
+                            <li><strong>Inventory Web Server</strong> — Designed a three-tier PHP/MySQL/Apache web system supporting login, search, update, and delete operations.</li>
+                            <li><strong>LED Distance Display</strong> — Created a Raspberry Pi–based sensing system integrating an ultrasonic sensor, servo motor, potentiometer, and 8×8 LED matrix.</li>
+                        </ul>
                     </div>
                 `;
+            } else if (drawerName === 'middle') {
+                content = `
+                    <h2 style="color: #1941A5; border-bottom: 2px solid #1941A5; padding-bottom: 10px;">📚 Education & Certifications</h2>
+                    <div style="padding: 20px; line-height: 1.8;">
+                        <h3>Education:</h3>
+                        <p><strong>Bachelor of Science in Computer Science</strong><br>
+                        Wilfrid Laurier University, Waterloo, ON<br>
+                        <em>September 2021 – August 2025</em></p>
 
-                document.body.appendChild(overlay);
+                        <h3 style="margin-top: 20px;">Technical Skills:</h3>
+                        <ul>
+                            <li><strong>Languages:</strong> Java, Python, C/C++, MySQL, JavaScript, HTML/CSS, PHP, VBA, R</li>
+                            <li><strong>Developer Tools:</strong> Git, VS Code, Eclipse, Oracle VirtualBox/VMware</li>
+                            <li><strong>Libraries:</strong> Pandas, NumPy, nltk</li>
+                        </ul>
+                    </div>
+                `;
+            } else if (drawerName === 'bottom') {
+                content = `
+                    <h2 style="color: #8B4513; border-bottom: 2px solid #8B4513; padding-bottom: 10px;">💼 Work Experience</h2>
+                    <div style="padding: 20px; line-height: 1.8;">
+                        <h3>IT Support Technician</h3>
+                        <p><strong>Adiventus</strong> | New Hamburg, ON | <em>Aug 2025 – Present</em><br>
+                        • Diagnosed and resolved hardware/software issues across Windows and Linux systems.<br>
+                        • Automated workflows using Python and Bash scripts.</p>
 
-                }
-                
-            function closeDrawerDocument() {
-                const overlay = document.getElementById('drawerOverlay');
-                if (overlay) {
-                    overlay.remove();
-                }
+                        <h3 style="margin-top: 20px;">Personal Trainer</h3>
+                        <p><strong>Wilfrid Laurier University</strong> | Waterloo, ON | <em>Sep 2021 – Present</em><br>
+                        • Coordinated client schedules and developed personalized training plans.</p>
+                    </div>
+                `;
             }
+
+            overlay.innerHTML = `
+                <div style="background: linear-gradient(180deg, #f0f0f0 0%, #e0e0e0 100%); padding: 15px; border-radius: 5px 5px 0 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #ccc;">
+                    <span style="font-size: 16px; font-weight: bold; color: #333;">📁 Filing Cabinet - ${drawerName.charAt(0).toUpperCase() + drawerName.slice(1)} Drawer</span>
+                    <button onclick="window.closeDrawerAndOverlay('${drawerName}');" style="background: #FF4444; color: white; border: none; width: 30px; height: 30px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 18px;">✕</button>
+                </div>
+                <div style="padding: 30px; height: calc(100% - 80px); overflow-y: auto; background: #fafafa;">
+                    ${content}
+                </div>
+            `;
+
+            document.body.appendChild(overlay);
+        }
+
+        function closeDrawerDocument() {
+            const overlay = document.getElementById('drawerOverlay');
+            if (overlay) {
+                overlay.remove();
+            }
+        }
 
         function createChair() {
             const chair = new THREE.Group();
             
-            // Seat
             const seat = new THREE.Mesh(
                 new THREE.BoxGeometry(0.8, 0.1, 0.8),
                 new THREE.MeshStandardMaterial({ color: 0x8B4513 })
@@ -705,7 +638,6 @@
             seat.castShadow = true;
             chair.add(seat);
 
-            // Backrest
             const back = new THREE.Mesh(
                 new THREE.BoxGeometry(0.8, 0.6, 0.1),
                 new THREE.MeshStandardMaterial({ color: 0x8B4513 })
@@ -714,7 +646,6 @@
             back.castShadow = true;
             chair.add(back);
 
-            // Legs
             const legGeometry = new THREE.BoxGeometry(0.08, 0.7, 0.08);
             const legMaterial = new THREE.MeshStandardMaterial({ color: 0x654321 });
             
@@ -738,7 +669,6 @@
         function create2000sComputer() {
             const comp = new THREE.Group();
 
-            // CRT Monitor (the bulky back)
             const monitorBack = new THREE.Mesh(
                 new THREE.BoxGeometry(0.6, 0.5, 0.6),
                 new THREE.MeshStandardMaterial({ color: 0xD3D3D3 })
@@ -746,7 +676,6 @@
             monitorBack.castShadow = true;
             comp.add(monitorBack);
 
-            // Monitor front bezel
             const bezel = new THREE.Mesh(
                 new THREE.BoxGeometry(0.62, 0.52, 0.05),
                 new THREE.MeshStandardMaterial({ color: 0xC0C0C0 })
@@ -755,7 +684,6 @@
             bezel.castShadow = true;
             comp.add(bezel);
 
-            // Screen (clickable)
             const screenGeometry = new THREE.BoxGeometry(0.5, 0.38, 0.02);
             const screenMaterial = new THREE.MeshStandardMaterial({ 
                 color: 0x1a472a,
@@ -765,9 +693,9 @@
             computerScreen.position.z = 0.36;
             computerScreen.castShadow = true;
             computerScreen.userData.clickable = true;
+            computerScreen.userData.isComputerScreen = true;
             comp.add(computerScreen);
 
-            // Power button (little circle)
             const powerButton = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.02, 0.02, 0.01, 16),
                 new THREE.MeshStandardMaterial({ color: 0x90EE90, emissive: 0x00FF00 })
@@ -776,7 +704,6 @@
             powerButton.position.set(0.25, -0.22, 0.35);
             comp.add(powerButton);
 
-            // Monitor stand
             const stand = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.08, 0.12, 0.15, 16),
                 new THREE.MeshStandardMaterial({ color: 0xC0C0C0 })
@@ -785,7 +712,6 @@
             stand.castShadow = true;
             comp.add(stand);
 
-            // Keyboard
             const keyboard = new THREE.Mesh(
                 new THREE.BoxGeometry(0.5, 0.03, 0.2),
                 new THREE.MeshStandardMaterial({ color: 0xE8E8E8 })
@@ -795,7 +721,6 @@
             keyboard.castShadow = true;
             comp.add(keyboard);
 
-            // Mouse
             const mouse = new THREE.Mesh(
                 new THREE.SphereGeometry(0.04, 16, 16),
                 new THREE.MeshStandardMaterial({ color: 0xD3D3D3 })
@@ -809,6 +734,11 @@
         }
 
         function onMouseClick(event) {
+            // Prevent clicking through overlays
+            if (document.getElementById('computerOverlay') || document.getElementById('drawerOverlay')) {
+                return;
+            }
+
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
@@ -817,8 +747,11 @@
 
             for (let intersect of intersects) {
                 if (intersect.object.userData.clickable) {
-                    if (intersect.object === computerScreen) {
+                    if (intersect.object.userData.isComputerScreen) {
                         toggleComputerScreen();
+                        break;
+                    } else if (intersect.object.userData.isBlackboard) {
+                        toggleBlackboardView();
                         break;
                     } else if (intersect.object.userData.drawerName) {
                         toggleDrawer(intersect.object);
@@ -828,27 +761,39 @@
             }
         }
 
+        function toggleBlackboardView() {
+            if (currentView === 'blackboard') {
+                currentView = 'default';
+                cameraAnimating = true;
+            } else {
+                currentView = 'blackboard';
+                cameraAnimating = true;
+            }
+        }
+
         function toggleComputerScreen() {
             isComputerScreenOpen = !isComputerScreenOpen;
+            cameraAnimating = true;
 
             if (isComputerScreenOpen) {
-                // Turn screen "on" - brighter blue with Windows XP style
+                currentView = 'computer';
                 computerScreen.material.color.setHex(0x5A9FD4);
                 computerScreen.material.emissive.setHex(0x0066CC);
                 
-                // Create overlay UI
-                createComputerUI();
+                setTimeout(() => {
+                    createComputerUI();
+                }, 800);
             } else {
-                // Turn screen "off" - back to dark green
+                currentView = 'default';
                 computerScreen.material.color.setHex(0x1a472a);
                 computerScreen.material.emissive.setHex(0x0a1a0a);
                 
-                // Remove overlay UI
                 removeComputerUI();
             }
         }
 
         function createComputerUI() {
+            
             const overlay = document.createElement('div');
             overlay.id = 'computerOverlay';
             overlay.style.cssText = `
@@ -883,31 +828,31 @@
                         </a>
                         <a href="https://github.com/owencrouse" target="_blank" style="text-decoration: none; color: white;">
                             <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
-                                <img src="images/github_img.webp" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🎵</div>'">
+                                <img src="images/github_img.webp" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🐙</div>'">
                                 <div style="font-size: 12px; margin-top: 5px;">GitHub</div>
                             </div>
                         </a>
                         <a href="https://www.linkedin.com/in/owen-crouse-821989318" target="_blank" style="text-decoration: none; color: white;">
                             <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
-                                <img src="images/linkedin_img.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🎮</div>'">
+                                <img src="images/linkedin_img.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>💼</div>'">
                                 <div style="font-size: 12px; margin-top: 5px;">LinkedIn</div>
                             </div>
                         </a>
                         <a href="mailto:owencrouse2003@gmail.com" style="text-decoration: none; color: white;">
                             <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
-                                <img src="images/gmail_img.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🖼️</div>'">
+                                <img src="images/gmail_img.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>📧</div>'">
                                 <div style="font-size: 12px; margin-top: 5px;">Email</div>
                             </div>
                         </a>
                         <a href="loadingscreen.html" target="_blank" style="text-decoration: none; color: white;">
                             <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
-                                <img src="icons/tech-icon.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🌐</div>'">
+                                <img src="icons/tech-icon.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>💻</div>'">
                                 <div style="font-size: 12px; margin-top: 5px;">Learn about Tech</div>
                             </div>
                         </a>
                         <a href="loadingscreen.html" target="_blank" style="text-decoration: none; color: white;">
                             <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
-                                <img src="icons/simulator-icon.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>💿</div>'">
+                                <img src="icons/simulator-icon.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🎮</div>'">
                                 <div style="font-size: 12px; margin-top: 5px;">Simulator</div>
                             </div>
                         </a>
@@ -933,55 +878,73 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            const elapsed = clock.getElapsedTime();
+            const elapsed = clockObj.getElapsedTime();
 
-            // Update clock hands with real time
             const now = new Date();
             const hours = now.getHours() % 12;
             const minutes = now.getMinutes();
             const seconds = now.getSeconds();
 
-            if (clock.secondHand) {
-                clock.secondHand.rotation.z = -(seconds * Math.PI / 30);
+            if (secondHand) {
+                secondHand.rotation.z = -(seconds * Math.PI / 30);
             }
-            if (clock.minuteHand) {
-                clock.minuteHand.rotation.z = -(minutes * Math.PI / 30 + seconds * Math.PI / 1800);
+            if (minuteHand) {
+                minuteHand.rotation.z = -(minutes * Math.PI / 30 + seconds * Math.PI / 1800);
             }
-            if (clock.hourHand) {
-                clock.hourHand.rotation.z = -(hours * Math.PI / 6 + minutes * Math.PI / 360);
+            if (hourHand) {
+                hourHand.rotation.z = -(hours * Math.PI / 6 + minutes * Math.PI / 360);
             }
 
-            // Rotate ceiling fan
             if (fan) {
                 fan.rotation.y += 0.05;
             }
 
-            // Animate windows (pulsing light)
             if (window1 && window2) {
                 const pulse = Math.sin(elapsed * 2) * 0.1 + 0.5;
                 window1.material.opacity = pulse;
                 window2.material.opacity = pulse;
             }
 
-            // Gentle desk bob animation
             desks.forEach((desk, i) => {
                 desk.position.y = 0.1 + Math.sin(elapsed + i * 0.5) * 0.02;
             });
 
-            // Gentle chair rock
             chairs.forEach((chair, i) => {
                 chair.rotation.z = Math.sin(elapsed * 0.5 + i * 0.3) * 0.01;
             });
 
-            // Camera orbit when not dragging
-            if (!scene.userData.isDragging()) {
-                scene.userData.rotationY += 0.002;
+            if (cameraAnimating) {
+                let targetPos, targetLookAt;
+                
+                if (currentView === 'computer') {
+                    targetPos = zoomedCameraPos;
+                    targetLookAt = { x: 0.4, y: 1.8, z: -5 };
+                } else if (currentView === 'blackboard') {
+                    targetPos = blackboardCameraPos;
+                    targetLookAt = { x: 0, y: 4, z: -7.5 };
+                } else {
+                    targetPos = defaultCameraPos;
+                    targetLookAt = { x: 0, y: 4, z: -7.5 };
+                }
+                
+                camera.position.x += (targetPos.x - camera.position.x) * 0.05;
+                camera.position.y += (targetPos.y - camera.position.y) * 0.05;
+                camera.position.z += (targetPos.z - camera.position.z) * 0.05;
+                
+                const lookAtTarget = new THREE.Vector3(targetLookAt.x, targetLookAt.y, targetLookAt.z);
+                camera.lookAt(lookAtTarget);
+                
+                const distance = Math.sqrt(
+                    Math.pow(targetPos.x - camera.position.x, 2) +
+                    Math.pow(targetPos.y - camera.position.y, 2) +
+                    Math.pow(targetPos.z - camera.position.z, 2)
+                );
+                if (distance < 0.01) {
+                    cameraAnimating = false;
+                }
+            } else {
+                camera.lookAt(0, 4, -7.5);
             }
-
-            const radius = camera.position.z;
-            camera.position.x = Math.sin(scene.userData.rotationY) * radius * 0.5;
-            camera.position.z = Math.cos(scene.userData.rotationY) * radius;
-            camera.lookAt(0, 4, -7.5);
 
             renderer.render(scene, camera);
         }
