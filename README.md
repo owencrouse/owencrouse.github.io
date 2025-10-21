@@ -99,7 +99,7 @@ This project demonstrates proficiency in:
 The classroom metaphor represents a learning environment where visitors can "attend class" and discover information about Owen Crouse's professional journey. Each interactive element reveals different aspects of my qualifications, creating an 
 engaging narrative experience rather than a static document. I also plan on adding educational topics which will allow user to learn about various tech subjects through video links, animation, and notes provided. 
 
-## 🔧 Customization
+## Customization
 
 To personalize this project:
 1. Replace image files in `/images` and `/icons` directories
@@ -108,7 +108,7 @@ To personalize this project:
 4. Adjust blackboard text in the canvas texture generation
 5. Add or remove classroom elements as desired
 
-## 📝 License
+## License
 
 This project is open source and available for educational purposes.
 
