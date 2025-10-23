@@ -183,6 +183,8 @@
             teacherDesk.scale.set(1.5, 1, 1.2);
             classroom.add(teacherDesk);
 
+            //----------------- Desks and Computers ------------------------------------------
+
             computer = create2000sComputer();
             computer.position.set(0.4, 1.65, -5);
             classroom.add(computer);
@@ -207,22 +209,139 @@
                 }
             }
 
+            //----------------- Windows ------------------------------------------
+            
+            // Window 1 with frame and panes
+            const window1Group = new THREE.Group();
+            
+            // Window glass
             const windowGeometry = new THREE.BoxGeometry(2, 3, 0.1);
             const windowMaterial = new THREE.MeshStandardMaterial({ 
                 color: 0x87CEEB, 
                 transparent: true, 
                 opacity: 0.5 
             });
-            
             window1 = new THREE.Mesh(windowGeometry, windowMaterial);
-            window1.position.set(-9.9, 4, -3);
-            window1.rotation.y = Math.PI / 2;
-            classroom.add(window1);
+            window1Group.add(window1);
+            
+            // Window frame (outer)
+            const frameMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
+            
+            // Top frame
+            const topFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(2.2, 0.1, 0.15),
+                frameMaterial
+            );
+            topFrame.position.y = 1.55;
+            window1Group.add(topFrame);
+            
+            // Bottom frame
+            const bottomFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(2.2, 0.1, 0.15),
+                frameMaterial
+            );
+            bottomFrame.position.y = -1.55;
+            window1Group.add(bottomFrame);
+            
+            // Left frame
+            const leftFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(0.1, 3.2, 0.15),
+                frameMaterial
+            );
+            leftFrame.position.x = -1.05;
+            window1Group.add(leftFrame);
+            
+            // Right frame
+            const rightFrame = new THREE.Mesh(
+                new THREE.BoxGeometry(0.1, 3.2, 0.15),
+                frameMaterial
+            );
+            rightFrame.position.x = 1.05;
+            window1Group.add(rightFrame);
+            
+            // Window panes (dividers)
+            const paneMaterial = new THREE.MeshStandardMaterial({ color: 0x654321 });
+            
+            // Horizontal divider
+            const horizontalPane = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 0.05, 0.12),
+                paneMaterial
+            );
+            horizontalPane.position.y = 0;
+            window1Group.add(horizontalPane);
+            
+            // Vertical divider
+            const verticalPane = new THREE.Mesh(
+                new THREE.BoxGeometry(0.05, 3, 0.12),
+                paneMaterial
+            );
+            verticalPane.position.x = 0;
+            window1Group.add(verticalPane);
+            
+            window1Group.position.set(-9.9, 4, -3);
+            window1Group.rotation.y = Math.PI / 2;
+            classroom.add(window1Group);
 
+            // Window 2 with frame and panes
+            const window2Group = new THREE.Group();
+            
+            // Window glass
             window2 = new THREE.Mesh(windowGeometry, windowMaterial);
-            window2.position.set(-9.9, 4, 3);
-            window2.rotation.y = Math.PI / 2;
-            classroom.add(window2);
+            window2Group.add(window2);
+            
+            // Top frame
+            const topFrame2 = new THREE.Mesh(
+                new THREE.BoxGeometry(2.2, 0.1, 0.15),
+                frameMaterial
+            );
+            topFrame2.position.y = 1.55;
+            window2Group.add(topFrame2);
+            
+            // Bottom frame
+            const bottomFrame2 = new THREE.Mesh(
+                new THREE.BoxGeometry(2.2, 0.1, 0.15),
+                frameMaterial
+            );
+            bottomFrame2.position.y = -1.55;
+            window2Group.add(bottomFrame2);
+            
+            // Left frame
+            const leftFrame2 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.1, 3.2, 0.15),
+                frameMaterial
+            );
+            leftFrame2.position.x = -1.05;
+            window2Group.add(leftFrame2);
+            
+            // Right frame
+            const rightFrame2 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.1, 3.2, 0.15),
+                frameMaterial
+            );
+            rightFrame2.position.x = 1.05;
+            window2Group.add(rightFrame2);
+            
+            // Horizontal divider
+            const horizontalPane2 = new THREE.Mesh(
+                new THREE.BoxGeometry(2, 0.05, 0.12),
+                paneMaterial
+            );
+            horizontalPane2.position.y = 0;
+            window2Group.add(horizontalPane2);
+            
+            // Vertical divider
+            const verticalPane2 = new THREE.Mesh(
+                new THREE.BoxGeometry(0.05, 3, 0.12),
+                paneMaterial
+            );
+            verticalPane2.position.x = 0;
+            window2Group.add(verticalPane2);
+            
+            window2Group.position.set(-9.9, 4, 3);
+            window2Group.rotation.y = Math.PI / 2;
+            classroom.add(window2Group);
+
+            //----------------- Door ------------------------------------------
 
             const doorGeometry = new THREE.BoxGeometry(2, 4, 0.1);
             const doorMaterial = new THREE.MeshStandardMaterial({ color: 0x8B4513 });
@@ -230,6 +349,9 @@
             door.position.set(9.9, 2, 0);
             door.rotation.y = -Math.PI / 2;
             classroom.add(door);
+
+
+            //----------------- Fan ------------------------------------------
 
             fan = new THREE.Group();
             const fanBase = new THREE.Mesh(
@@ -253,6 +375,10 @@
             scene.add(classroom);
         }
 
+
+        //----------------- Posters ------------------------------------------
+
+        //can replace images in the posters
         function createPosters() {
             const textureLoader = new THREE.TextureLoader();
             
@@ -265,7 +391,7 @@
             classroom.add(poster1);
             
             // Poster 1 content (with your image)
-            const poster1Texture = textureLoader.load('images/resume_img.png');
+            const poster1Texture = textureLoader.load('images/good-will-hunting-poster.jpg');
             const poster1Content = new THREE.Mesh(
                 new THREE.BoxGeometry(1.8, 2.3, 0.02),
                 new THREE.MeshStandardMaterial({ map: poster1Texture })
@@ -281,7 +407,7 @@
             poster2.position.set(5, 4, -7.4);
             classroom.add(poster2);
             
-            const poster2Texture = textureLoader.load('images/inception_testposter.jpg');
+            const poster2Texture = textureLoader.load('images/GreekHead.jpg');
             const poster2Content = new THREE.Mesh(
                 new THREE.BoxGeometry(1.8, 2.3, 0.02),
                 new THREE.MeshStandardMaterial({ map: poster2Texture })
@@ -298,7 +424,7 @@
             poster3.rotation.y = Math.PI / 2;
             classroom.add(poster3);
             
-            const poster3Texture = textureLoader.load('images/tron-motorcycle.jpg');
+            const poster3Texture = textureLoader.load('images/rome-coloseum.jpg');
             const poster3Content = new THREE.Mesh(
                 new THREE.BoxGeometry(1.8, 1.3, 0.02),
                 new THREE.MeshStandardMaterial({ map: poster3Texture })
@@ -316,9 +442,11 @@
             poster4.rotation.y = Math.PI / 2;
             classroom.add(poster4);
             
+            
+            const poster4Texture = textureLoader.load('images/bgstreetcars(1).png');
             const poster4Content = new THREE.Mesh(
                 new THREE.BoxGeometry(1.8, 1.3, 0.02),
-                new THREE.MeshStandardMaterial({ color: 0x32CD32 })
+                new THREE.MeshStandardMaterial({ map: poster4Texture })
             );
             poster4Content.position.set(-9.85, 5.5, 6);
             poster4Content.rotation.y = Math.PI / 2;
@@ -333,9 +461,10 @@
             poster5.rotation.y = -Math.PI / 2;
             classroom.add(poster5);
             
+            const poster5Texture = textureLoader.load('images/tron-motorcycle.jpg');
             const poster5Content = new THREE.Mesh(
                 new THREE.BoxGeometry(2.8, 1.8, 0.02),
-                new THREE.MeshStandardMaterial({ color: 0x87CEEB })
+                new THREE.MeshStandardMaterial({ map: poster5Texture })
             );
             poster5Content.position.set(9.85, 4.5, -3);
             poster5Content.rotation.y = -Math.PI / 2;
@@ -343,20 +472,24 @@
 
             // Poster 6 - Alphabet poster on right wall
             const poster6 = new THREE.Mesh(
-                new THREE.BoxGeometry(2.5, 1.5, 0.05),
+                new THREE.BoxGeometry(2.5, 1.9, 0.05),
                 new THREE.MeshStandardMaterial({ color: 0xFFFFFF })
             );
             poster6.position.set(9.9, 6, 4);
             poster6.rotation.y = -Math.PI / 2;
             classroom.add(poster6);
             
+            const poster6Texture = textureLoader.load('images/canadian-flag.png');
             const poster6Content = new THREE.Mesh(
-                new THREE.BoxGeometry(2.3, 1.3, 0.02),
-                new THREE.MeshStandardMaterial({ color: 0xFF69B4 })
+                new THREE.BoxGeometry(2.3, 1.8, 0.02),
+                new THREE.MeshStandardMaterial({ map: poster6Texture })
             );
             poster6Content.position.set(9.85, 6, 4);
             poster6Content.rotation.y = -Math.PI / 2;
             classroom.add(poster6Content);
+
+
+            //----------------- Clock ------------------------------------------
 
             const clockFrame = new THREE.Mesh(
                 new THREE.CylinderGeometry(0.4, 0.4, 0.1, 32),
@@ -437,6 +570,8 @@
 
             return desk;
         }
+
+        //----------------- Filing Cabinet ------------------------------------------
 
         function createFilingCabinet() {
             const cabinet = new THREE.Group();
@@ -559,21 +694,54 @@
                 font-family: 'Times New Roman', serif;
                 color: #000;
             `;
-
+            //----------------- Inside Drawers ------------------------------------------
             let content = '';
+            //Projects
             if (drawerName === 'top') {
                 content = `
                     <h2 style="color: #2F4F2F; border-bottom: 2px solid #2F4F2F; padding-bottom: 10px;">📋 Projects & Portfolio</h2>
                     <div style="padding: 20px; line-height: 1.8;">
-                        <h3>Featured Projects:</h3>
+                        <h3>Firewall + Netfilter</h3>
                         <ul>
-                            <li><strong>Firewall Engineering + Netfilter</strong> — Developed a custom packet-filtering firewall at the Linux kernel level using <em>iptables</em> and <em>Netfilter</em>.</li>
-                            <li><strong>Premier League Stat Predictor</strong> — Built a machine learning pipeline in <em>Python</em> (Pandas, XGBoost, Jupyter) to predict Fantasy Premier League player performance.</li>
-                            <li><strong>Inventory Web Server</strong> — Designed a three-tier PHP/MySQL/Apache web system supporting login, search, update, and delete operations.</li>
-                            <li><strong>LED Distance Display</strong> — Created a Raspberry Pi–based sensing system integrating an ultrasonic sensor, servo motor, potentiometer, and 8×8 LED matrix.</li>
+                            <li>Developed a packet-filtering firewall to inspect and block traffic at the kernel level.</li>
+                            <li>Implemented rules using iptables to control network traffic flow.</li>
+                            <li>Analyzed Netfilter hook logic to understand kernel-level packet processing.</li>
+                            <li>Built Docker Compose environments to simulate multi-host network topologies.</li>
+                        </ul>
+
+                        <h3>Premier League Stat Predictor</h3>
+                        <ul>
+                            <li>Designed a machine learning pipeline to predict Fantasy Premier League player performance.</li>
+                            <li>Engineered advanced features like opponent difficulty modeling and dynamic scoring metrics.</li>
+                            <li>Trained and validated XGBoost models; displayed predictions on a dynamic HTML dashboard.</li>
+                            <li>Created a modular Jupyter workflow with scraping, feature computation, and model tuning.</li>
+                        </ul>
+
+                        <h3>Inventory Web Server</h3>
+                        <ul>
+                            <li>Built a three-tier inventory management system with secure login, search, update, and delete features.</li>
+                            <li>Implemented prepared SQL statements to prevent injection and maintain referential integrity.</li>
+                            <li>Developed an interactive JS frontend and PHP backend for real-time MySQL updates.</li>
+                        </ul>
+
+                        <h3>Led Distance Display</h3>
+                        <ul>
+                            <li>Designed and built a multi-modal distance sensing system using Raspberry Pi, integrating an ultrasonic sensor (HC-SR04), servo motor (MG90), analog potentiometer (via PCF8591 ADC), and an 8×8 LED matrix (MAX7219).</li>
+                            <li>Used RPi.GPIO to read potentiometer input and dynamically control the frequency of ultrasonic measurements by mapping analog values to sensing delay intervals.</li>
+                            <li>Calculated object distance using echo pulse timing from the ultrasonic sensor and displayed the result on an 8×8 LED matrix.</li>
+                        </ul>
+
+
+                        <h3>3D Interactive Classroom Portfolio </h3>
+                        <ul>
+                            <li>Built this immersive 3D virtual portfolio using Three.js </li>
+                            <li>Has a Windows XP–style UI featuring quick-access icons linking to GitHub and LinkedIn.</li>
+                            <li>Engineered raycasting-based interaction and state management for drawer and UI events.</li>
+                            <li>Optimized performance using geometry reuse, grouped draw calls, and PCF shadow mapping.</li>
                         </ul>
                     </div>
                 `;
+                // Education 
             } else if (drawerName === 'middle') {
                 content = `
                     <h2 style="color: #1941A5; border-bottom: 2px solid #1941A5; padding-bottom: 10px;">📚 Education & Certifications</h2>
@@ -589,20 +757,50 @@
                             <li><strong>Developer Tools:</strong> Git, VS Code, Eclipse, Oracle VirtualBox/VMware</li>
                             <li><strong>Libraries:</strong> Pandas, NumPy, nltk</li>
                         </ul>
+
+                        <h3 style="margin-top: 20px;">Related Courses:</h3>
+                        <p> Data Structures, Algorithms, Operating Systems, Database Systems, 
+                        Computer Networks, Software Engineering, Cryptography, 
+                        Computer Security, Theory of Computation, Physical Electronics <p>
+                        </p>
                     </div>
                 `;
+                //work experience 
             } else if (drawerName === 'bottom') {
                 content = `
                     <h2 style="color: #8B4513; border-bottom: 2px solid #8B4513; padding-bottom: 10px;">💼 Work Experience</h2>
                     <div style="padding: 20px; line-height: 1.8;">
                         <h3>IT Support Technician</h3>
                         <p><strong>Adiventus</strong> | New Hamburg, ON | <em>Aug 2025 – Present</em><br>
-                        • Diagnosed and resolved hardware/software issues across Windows and Linux systems.<br>
-                        • Automated workflows using Python and Bash scripts.</p>
+                        • Diagnosed and resolved hardware and software issues across Windows and Linux systems.<br>
+                        • Installed, updated, and configured applications ensuring compatibility with existing systems.<br>
+                        • Automated repetitive work using Python and Bash scripts.<br>
+                        • Designed and maintained small-scale MySQL databases for internal reporting and tracking.<br>
+                        • Collaborated with senior IT staff to document solutions and improve troubleshooting workflows.
+                        </p>
+                        
+
+                        <h3 style="margin-top: 20px;">General Labourer</h3>
+                        <p><strong>Ghent Landscape</strong> | Petersburg, ON | <em>Apr – Sept (2021–2025)</em><br>
+                        • Assisted with retaining walls, interlock patios, excavations, and commercial landscaping projects.<br>
+                        • Operated construction tools and heavy equipment safely and efficiently.<br>
+                        • Maintained a professional and courteous demeanor when interacting with clients and coworkers.<br>
+                        • Coordinated with the Foreman to meet project goals and ensure client satisfaction.
+                        </p>
 
                         <h3 style="margin-top: 20px;">Personal Trainer</h3>
                         <p><strong>Wilfrid Laurier University</strong> | Waterloo, ON | <em>Sep 2021 – Present</em><br>
-                        • Coordinated client schedules and developed personalized training plans.</p>
+                        • Scheduled and managed client training sessions collaboratively with facility staff.<br>
+                        • Assessed clients’ physical conditions and designed personalized workout programs.<br>
+                        • Ensured proper equipment setup and maintenance for safe, effective workouts.
+                        </p>
+
+                        <h3 style="margin-top: 20px;">Retail Associate</h3>
+                        <p><strong>Athena Art and Gift Store</strong> | Kitchener, ON | <em>Dec 2016 – Aug 2020</em><br>
+                        • Managed inventory and maintained organized, appealing product displays.<br>
+                        • Delivered excellent customer service and assisted clients with product inquiries.<br>
+                        • Processed sales transactions and balanced cash and credit payments accurately.
+                        </p>
                     </div>
                 `;
             }
@@ -626,6 +824,8 @@
                 overlay.remove();
             }
         }
+
+        //----------------- Chair ------------------------------------------
 
         function createChair() {
             const chair = new THREE.Group();
@@ -665,6 +865,8 @@
 
             return chair;
         }
+
+        //----------------- Computer ------------------------------------------
 
         function create2000sComputer() {
             const comp = new THREE.Group();
@@ -846,14 +1048,14 @@
                         </a>
                         <a href="loadingscreen.html" target="_blank" style="text-decoration: none; color: white;">
                             <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
-                                <img src="icons/tech-icon.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>💻</div>'">
+                                <img src="images/tech-learn.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>💻</div>'">
                                 <div style="font-size: 12px; margin-top: 5px;">Learn about Tech</div>
                             </div>
                         </a>
-                        <a href="loadingscreen.html" target="_blank" style="text-decoration: none; color: white;">
+                        <a href="images/Student_Transcript.pdf" target="_blank" style="text-decoration: none; color: white;">
                             <div style="text-align: center; cursor: pointer; padding: 10px; border-radius: 5px; background: rgba(255,255,255,0.1);" onmouseover="this.style.background='rgba(255,255,255,0.2)'" onmouseout="this.style.background='rgba(255,255,255,0.1)'">
-                                <img src="icons/simulator-icon.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>🎮</div>'">
-                                <div style="font-size: 12px; margin-top: 5px;">Simulator</div>
+                                <img src="images/resume_img.png" style="width: 40px; height: 40px; object-fit: contain;" onerror="this.outerHTML='<div style=\\'font-size: 40px;\\'>📄</div>'">
+                                <div style="font-size: 12px; margin-top: 5px;">Transcript</div>
                             </div>
                         </a>
                     </div>
@@ -874,6 +1076,8 @@
                 overlay.remove();
             }
         }
+
+        //----------------- Animations ------------------------------------------
 
         function animate() {
             requestAnimationFrame(animate);
